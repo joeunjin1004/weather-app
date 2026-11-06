@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>실시간 날씨 정보 | Weather Cast</title>
+  <!-- Google Fonts & Lucide Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-default">
+  <!-- 토스트 안내 알림 -->
+  <div id="weather-toast" class="weather-toast"></div>
+
+  <!-- 날씨에 따라 실시간 반응하는 움직이는 배경 컨테이너 -->
+  <div id="weather-bg" class="weather-bg-container">
+    <div id="bg-media" class="bg-media"></div>
+    <canvas id="weather-canvas"></canvas>
+    <div class="bg-overlay"></div>
+    <div class="lightning-flash" id="lightning-flash"></div>
+  </div>
+
+  <div class="app-container">
+    <!-- 헤더 영역 -->
+    <header class="app-header">
+      <div class="logo">
+        <i data-lucide="cloud-sun" class="logo-icon"></i>
+        <span>WeatherCast</span>
+      </div>
+      <div class="header-badge">
+        <span class="pulse-dot"></span>
+        <span>Open-Meteo 무료 API 연동</span>
+      </div>
+    </header>
+
+    <!-- 검색 및 위치 탐색 영역 -->
+    <section class="search-section">
+      <form id="search-form" class="search-box">
+        <i data-lucide="search" class="search-icon"></i>
+        <input 
+          type="text" 
+          id="city-input" 
+          placeholder="도시 이름을 입력하세요 (예: 서울, 부산, 제주, Tokyo, Paris...)" 
+          autocomplete="off"
+        >
+        <button type="submit" class="search-btn" title="검색">
+          <span>검색</span>
+        </button>
+        <button type="button" id="geo-btn" class="geo-btn" title="현재 내 위치 날씨">
+          <i data-lucide="map-pin"></i>
+          <span class="geo-btn-text">내 위치</span>
+        </button>
+      </form>
+      
+      <!-- 검색 자동완성/추천 드롭다운 -->
+      <div id="search-suggestions" class="search-suggestions hidden"></div>
+
+      <!-- 추천 주요 도시 퀵 칩 -->
+      <div class="quick-cities">
+        <span class="quick-label">추천 도시:</span>
+        <div class="chip-container">
+          <button class="city-chip" data-city="서울">서울</button>
+          <button class="city-chip" data-city="부산">부산</button>
+          <button class="city-chip" data-city="제주">제주</button>
+          <button class="city-chip" data-city="인천">인천</button>
+          <button class="city-chip" data-city="도쿄">도쿄</button>
+          <button class="city-chip" data-city="뉴욕">뉴욕</button>
+          <button class="city-chip" data-city="런던">런던</button>
+          <button class="city-chip" data-city="파리">파리</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 로딩 스피너 -->
+    <div id="loading" class="loading-state hidden">
+      <div class="spinner"></div>
+      <p>최신 기상 데이터를 불러오는 중입니다...</p>
+    </div>
+
+    <!-- 에러 메시지 -->
+    <div id="error-message" class="error-banner hidden">
+      <i data-lucide="alert-circle"></i>
+      <span id="error-text">날씨 정보를 가져오는 데 실패했습니다.</span>
+    </div>
+
+    <!-- 메인 날씨 디스플레이 영역 -->
+    <main id="weather-content" class="weather-content hidden">
+      <!-- 현재 날씨 메인 카드 -->
+      <div class="current-weather-card">
+        <div class="card-header">
+          <div>
+            <div class="location-group">
+              <a id="map-link-btn" class="map-link-btn" href="#" target="_blank" rel="noopener noreferrer" title="구글 맵에서 이 위치 보기">
+                <i data-lucide="map-pin" class="location-pin"></i>
+              </a>
+              <h1 id="city-name">도시 이름</h1>
+            </div>
+            <p id="country-name" class="country-text">국가 정보</p>
+          </div>
+          <div class="update-time-box">
+            <div class="time-badge">
+              <i data-lucide="clock" class="time-clock-icon"></i>
+              <span>현지 시각</span>
+            </div>
+            <span id="current-time" class="local-time-digital">--:--:--</span>
+            <span id="local-date" class="local-date">--년 --월 --일</span>
+            <small id="local-timezone" class="local-timezone">타임존</small>
+          </div>
+        </div>
+
+        <div class="weather-hero">
+          <div class="weather-visual">
+            <div id="weather-icon-wrapper" class="icon-wrapper">
+              <i data-lucide="sun" class="main-weather-icon"></i>
+            </div>
+            <p id="weather-description" class="weather-condition">맑음</p>
+          </div>
+          <div class="temperature-display">
+            <div class="main-temp-wrapper">
+              <span id="current-temp" class="main-temp">--</span>
+              <span class="temp-unit">°C</span>
+            </div>
+            <div class="temp-range">
+              <span>최저 <strong id="temp-min">--°</strong></span>
+              <span class="divider">/</span>
+              <span>최고 <strong id="temp-max">--°</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 서브 정보 그리드 -->
+        <div class="weather-details-grid">
+          <div class="detail-item">
+            <i data-lucide="thermometer" class="detail-icon icon-feel"></i>
+            <div class="detail-info">
+              <span class="detail-title">체감 온도</span>
+              <span id="apparent-temp" class="detail-value">--°C</span>
+            </div>
+          </div>
+          <div class="detail-item">
+            <i data-lucide="droplets" class="detail-icon icon-humidity"></i>
+            <div class="detail-info">
+              <span class="detail-title">습도</span>
+              <span id="humidity" class="detail-value">--%</span>
+            </div>
+          </div>
+          <div class="detail-item">
+            <i data-lucide="wind" class="detail-icon icon-wind"></i>
+            <div class="detail-info">
+              <span class="detail-title">풍속</span>
+              <span id="wind-speed" class="detail-value">-- km/h</span>
+            </div>
+          </div>
+          <div class="detail-item">
+            <i data-lucide="cloud-rain" class="detail-icon icon-rain"></i>
+            <div class="detail-info">
+              <span class="detail-title">강수량</span>
+              <span id="precipitation" class="detail-value">-- mm</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 미세먼지 & 초미세먼지 카드 -->
+        <div class="air-quality-container">
+          <div class="air-header">
+            <div class="air-title">
+              <i data-lucide="wind"></i>
+              <span>대기질 및 미세먼지</span>
+            </div>
+            <span id="air-overall-badge" class="air-badge badge-good">측정 중</span>
+          </div>
+          <div class="air-grid">
+            <div class="air-item">
+              <div class="air-item-top">
+                <span class="air-label">미세먼지 (PM10)</span>
+                <span id="pm10-status" class="air-grade">--</span>
+              </div>
+              <div class="air-value-wrap">
+                <span id="pm10-val" class="air-num">--</span>
+                <span class="air-unit">µg/m³</span>
+              </div>
+              <div class="air-bar-track">
+                <div id="pm10-bar" class="air-bar-fill" style="width: 0%;"></div>
+              </div>
+            </div>
+            <div class="air-item">
+              <div class="air-item-top">
+                <span class="air-label">초미세먼지 (PM2.5)</span>
+                <span id="pm25-status" class="air-grade">--</span>
+              </div>
+              <div class="air-value-wrap">
+                <span id="pm25-val" class="air-num">--</span>
+                <span class="air-unit">µg/m³</span>
+              </div>
+              <div class="air-bar-track">
+                <div id="pm25-bar" class="air-bar-fill" style="width: 0%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 해외 국가 검색 시 활성화되는 항공기 결항 & 운항 상황 카드 -->
+      <section id="flight-alert-section" class="flight-alert-section hidden">
+        <div class="flight-card-header">
+          <div class="flight-title-group">
+            <i data-lucide="plane-takeoff" class="flight-icon"></i>
+            <div>
+              <h2 class="flight-title">국제선 항공편 운항 & 결항 모니터링</h2>
+              <p id="flight-airport-info" class="flight-subtitle">현지 주요 관문 공항</p>
+            </div>
+          </div>
+          <span id="flight-risk-badge" class="flight-badge badge-normal">
+            <span class="status-indicator"></span>
+            <span id="flight-risk-text">정상 운항</span>
+          </span>
+        </div>
+
+        <div id="flight-alert-banner" class="flight-alert-banner banner-normal">
+          <i data-lucide="info" id="flight-alert-icon"></i>
+          <span id="flight-alert-desc">현재 해당 지역의 기상이 안정적이어서 기상 악화로 인한 결항 위험이 낮습니다.</span>
+        </div>
+
+        <!-- 항공 운항 상세 지표 -->
+        <div class="flight-details-grid">
+          <div class="flight-stat">
+            <span class="stat-name">기상 결항 위험도</span>
+            <strong id="flight-disruption-index" class="stat-value text-green">낮음 (0%)</strong>
+          </div>
+          <div class="flight-stat">
+            <span class="stat-name">현지 시정/바람</span>
+            <strong id="flight-weather-factor" class="stat-value">양호</strong>
+          </div>
+          <div class="flight-stat">
+            <span class="stat-name">인천(ICN) 연결 노선</span>
+            <strong id="flight-route-status" class="stat-value text-green">정상 운항 예상</strong>
+          </div>
+        </div>
+
+        <div class="flight-action-box">
+          <span class="flight-notice">※ 폭설, 태풍, 뇌우, 짙은 안개 등 급격한 기상 이변 시 항공편 결항·지연 주의보가 자동 발령됩니다.</span>
+          <a id="flight-tracker-link" href="#" target="_blank" rel="noopener noreferrer" class="flight-tracker-btn">
+            <i data-lucide="external-link"></i>
+            <span>실시간 공항 출도착/결항 조회</span>
+          </a>
+        </div>
+      </section>
+
+      <!-- 24시간 시간별 예보 -->
+      <section class="forecast-section">
+        <h2 class="section-title">
+          <i data-lucide="clock"></i> 24시간 예보
+        </h2>
+        <div id="hourly-forecast-list" class="hourly-scroll-container">
+          <!-- 시간별 아이템 동적 삽입 -->
+        </div>
+      </section>
+
+      <!-- 주간 예보 (7일) -->
+      <section class="forecast-section">
+        <h2 class="section-title">
+          <i data-lucide="calendar"></i> 주간 일기 예보 (7일)
+          <span class="section-hint">👆 날씨 클릭 시 배경 전환</span>
+        </h2>
+        <div id="daily-forecast-list" class="daily-forecast-grid">
+          <!-- 일별 아이템 동적 삽입 -->
+        </div>
+      </section>
+    </main>
+
+    <!-- 푸터 -->
+    <footer class="app-footer">
+      <p>Data provided by <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> (무료 공개 날씨 API, API Key 불필요)</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
